@@ -23,20 +23,20 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, FileType
 
 
 # from https://bytes.com/topic/python/answers/41987-canonical-way-dealing-null-separated-lines
-def lines(f, newline='\n', leave_newline=False, read_size=8192):
+def lines(f, newline='\n', leave_newline=False):
     """Like the normal file iter but you can set what string indicates newline."""
     output_lineend = ('', newline)[leave_newline]
     partial_line = ''
     while True:
-        chars_just_read = f.read(read_size)
+        chars_just_read = f.read()   # was read(read_size) but it didn't work
         if not chars_just_read:
             break
         lines = (partial_line + chars_just_read).split(newline)
         partial_line = lines.pop()
         for line in lines:
             yield line + output_lineend
-        if partial_line:
-            yield partial_line
+    if partial_line:
+        yield partial_line
 
 def main():
     description = ''
@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('-0', '--sep0', action='store_true',
                         help='input is null separated')
+    parser.add_argument('-g', '--ignore_errors', action='store_true')
     parser.add_argument('--srcdir', default="")
     parser.add_argument('--destdir', default="",
                         help='if specified, create directories in dest space and provide {dest} name for command')
@@ -72,10 +73,14 @@ def main():
                 os.makedirs(os.path.dirname(dest_filename))
             except FileExistsError:
                 pass  # that's fine
-        if not os.path.exists(filenames['src']):
-            logging.error('{} not found'.format(filenames['src']))
-        subprocess.run(shlex.split(args.cmd.format(**filenames)))
-
+        if os.path.exists(filenames['src']):
+            subprocess.run(shlex.split(args.cmd.format(**filenames)))
+        else:
+            msg = '{} not found'.format(filenames['src'])
+            if args.ignore_errors:
+                logging.warning(msg)
+            else:
+                logging.error(msg)
 
 if __name__ == '__main__':
     main()
