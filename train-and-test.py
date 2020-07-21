@@ -66,6 +66,7 @@ class AudioDataset(IterableDataset):
         random.shuffle(self.songs)
 
     def whole_songs(self):
+        '''yield audio segments batched by song'''
         for song in self.songs:
             data = torch.stack(list(song.audio_segments(self.music_dir,
                                                    self.segment_length, 
@@ -73,6 +74,7 @@ class AudioDataset(IterableDataset):
             yield data, self.label_number_map[song.label]
 
     def __iter__(self):
+        '''yield audio segments, one at a time'''
         start = 0
         stop = len(self.songs)
         worker_info = torch.utils.data.get_worker_info()
@@ -90,6 +92,8 @@ class AudioDataset(IterableDataset):
 
 
 class Song():
+    '''Each instance holds the metadata from one song and can provide
+    audio data on demand.'''
     def __init__(self, fields):
         self.fields = fields
         self.__dict__.update(fields)
@@ -98,6 +102,9 @@ class Song():
         return 'Song<{}>'.format(str(list(self.fields.values())))
 
     def audio_segments(self, music_dir, segment_length, downsample_rate):
+        # Caching proved not to be worthwhile when loading from wav files.
+        # mp3 files are much slower to load, but rather than cache audio,
+        # it's better to convert the data set in advance.
         (audio, samplingfreq) = torchaudio.load(os.path.join(music_dir, self.filename))
         audio = audio.permute(1, 0) # 1×N ~ N×1
         # downsample, and keep the amount amount of data specified
@@ -108,6 +115,7 @@ class Song():
             yield audio[i * segment_length: (i+1) * segment_length].permute(1, 0)
 
 class ConvBn(nn.Module):
+    '''A convenience class for setting up Conv1d + BatchNorm1d components'''
     def __init__(self, in_channels, out_channels, *args, **kwargs):
         super().__init__()
         self.conv = nn.Conv1d(in_channels, out_channels, *args, **kwargs)
@@ -117,6 +125,7 @@ class ConvBn(nn.Module):
         return F.relu(self.bn(self.conv(x)))
 
 class ManyConvMaxPool(nn.Module):
+    '''Set up multiple ConvBn + MaxPool1d components'''
     def __init__(self, conv_count, maxpool_kernel, in_channels, out_channels, *args, **kwargs):
         super().__init__()
         self.pool = nn.MaxPool1d(maxpool_kernel)
@@ -130,6 +139,7 @@ class ManyConvMaxPool(nn.Module):
         return self.pool(x)
 
 class Net(nn.Module):
+    '''Our main network'''
     def __init__(self, num_classes):
         super(Net, self).__init__()
         # M11 network from https://arxiv.org/pdf/1610.00087.pdf
