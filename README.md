@@ -4,7 +4,7 @@
 
 
 20 years ago, I wrote a music genre classifier for
-[my MSc thesis](http://www.sethoscope.net/aimsc/). I
+[my MSc thesis](https://www.sethoscope.net/aimsc/). I
 taught myself some signal processing, thought up useful features,
 coded up extractors, turned a large pile of CDs into a much small pile
 of high level features that captured various narrow aspects of the
