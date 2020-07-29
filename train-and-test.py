@@ -252,6 +252,13 @@ def main():
     parser.add_argument('-r', '--downsample_rate', type=int, default=4,
                         help='downsample the audio by this')
     parser.add_argument('--plot', action='store_true')
+    parser.add_argument('--train_frac', type=float, default=0.9,
+                        help='fraction of data to be used for training (vs testing)')
+    parser.add_argument('--log_interval', type=int, default=20)
+    parser.add_argument('--batch_size', type=int, default=128,
+                        help='number of training samples to run as a batch')
+    parser.add_argument('--num_workers_cpu', type=int, default=4)
+    parser.add_argument('--num_workers_cuda', type=int, default=2)
     parser.add_argument('music_dir', help='directory containing music files')
     parser.add_argument('metadata', type=FileType('r'),
                         help='yaml file containing song metadata')
@@ -263,9 +270,9 @@ def main():
 
 
     train_songs, test_songs = split_evenly((Song(s) for s in yaml.safe_load(args.metadata)),
-                                           lambda s: s.label, 0.9)
+                                           lambda s: s.label, args.train_frac)
 
-    thing = Thing(log_interval = 20)
+    thing = Thing(log_interval = args.log_interval)
     thing.train_set = AudioDataset(train_songs, args.music_dir,
                                    args.segment_length, args.downsample_rate)
     thing.test_set = AudioDataset(test_songs, args.music_dir,
@@ -274,11 +281,11 @@ def main():
     logging.info(f'Test set size: {len(thing.test_set.songs)} songs')
 
     if thing.device == torch.device('cuda'):
-        kwargs = {'num_workers': 2, 'pin_memory': True}
+        kwargs = {'num_workers': args.num_workers_cuda, 'pin_memory': True}
     else:
-        kwargs = {'num_workers': 4}
-    thing.train_loader = torch.utils.data.DataLoader(thing.train_set, batch_size = 128, **kwargs)
-    thing.test_loader = torch.utils.data.DataLoader(thing.test_set, batch_size = 128, **kwargs)
+        kwargs = {'num_workers': args.num_workers_cpu}
+    thing.train_loader = torch.utils.data.DataLoader(thing.train_set, batch_size = args.batch_size, **kwargs)
+    thing.test_loader = torch.utils.data.DataLoader(thing.test_set, batch_size = args.batch_size, **kwargs)
 
     thing.model = Net(thing.train_set.num_classes())
     thing.model.to(thing.device)
