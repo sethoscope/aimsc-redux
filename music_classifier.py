@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, FileType
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, FileType, Namespace
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -239,7 +239,7 @@ class Thing():
                                                                                    int(time.time() - start_time)))
 
 
-def main():
+def make_argparser():
     description = ''
     parser = ArgumentParser(description=description,
                             formatter_class=ArgumentDefaultsHelpFormatter)
@@ -262,12 +262,29 @@ def main():
     parser.add_argument('music_dir', help='directory containing music files')
     parser.add_argument('metadata', type=FileType('r'),
                         help='yaml file containing song metadata')
-    args = parser.parse_args()
+    return parser
+
+def fill_defaults(music_dir, metadata, **kwargs):
+    args = make_argparser().parse_args([music_dir, metadata])
+    args.__dict__.update(kwargs)
+    return vars(args)
+
+def main():
+    args = make_argparser().parse_args()
+    r = train_and_test(**vars(args))
+    logging.debug(f'test results: {r}')
+
+def train_and_test(music_dir, metadata, **kwargs):
+    # bundle things into args just for now, to avoid changing all the code
+    args = Namespace()
+    args.music_dir = music_dir
+    args.metadata = metadata
+    args.__dict__.update(kwargs)
+    
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-
 
     train_songs, test_songs = split_evenly((Song(s) for s in yaml.safe_load(args.metadata)),
                                            lambda s: s.label, args.train_frac)
@@ -301,6 +318,8 @@ def main():
         import matplotlib.pyplot as plt
         plt.plot(thing.test_results)
         plt.show()
+
+    return thing.test_results
 
 
 if __name__ == '__main__':
